@@ -3,8 +3,10 @@ Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toString
 var common_vendor = require("./common/vendor.js");
 if (!Math) {
   "./pages/index/index.js";
+  "./pages/home/index.js";
 }
 const _sfc_main = /* @__PURE__ */ common_vendor.defineComponent({
+  __name: "App",
   setup(__props) {
     common_vendor.onLaunch(() => {
       console.log("App Launch");

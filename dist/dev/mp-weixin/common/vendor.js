@@ -173,6 +173,16 @@ function getValueByDataPath(obj, path) {
   }
   return getValueByDataPath(obj[key], parts.slice(1).join("."));
 }
+function sortObject(obj) {
+  let sortObj = {};
+  if (isPlainObject(obj)) {
+    Object.keys(obj).sort().forEach((key) => {
+      const _key = key;
+      sortObj[_key] = obj[_key];
+    });
+  }
+  return !Object.keys(sortObj) ? obj : sortObj;
+}
 const encode = encodeURIComponent;
 function stringifyQuery(obj, encodeStr = encode) {
   const res = obj ? Object.keys(obj).map((key) => {
@@ -302,6 +312,46 @@ E.prototype = {
   }
 };
 var E$1 = E;
+const LOCALE_ZH_HANS = "zh-Hans";
+const LOCALE_ZH_HANT = "zh-Hant";
+const LOCALE_EN = "en";
+const LOCALE_FR = "fr";
+const LOCALE_ES = "es";
+function include(str, parts) {
+  return !!parts.find((part) => str.indexOf(part) !== -1);
+}
+function startsWith(str, parts) {
+  return parts.find((part) => str.indexOf(part) === 0);
+}
+function normalizeLocale(locale, messages) {
+  if (!locale) {
+    return;
+  }
+  locale = locale.trim().replace(/_/g, "-");
+  if (messages && messages[locale]) {
+    return locale;
+  }
+  locale = locale.toLowerCase();
+  if (locale === "chinese") {
+    return LOCALE_ZH_HANS;
+  }
+  if (locale.indexOf("zh") === 0) {
+    if (locale.indexOf("-hans") > -1) {
+      return LOCALE_ZH_HANS;
+    }
+    if (locale.indexOf("-hant") > -1) {
+      return LOCALE_ZH_HANT;
+    }
+    if (include(locale, ["-tw", "-hk", "-mo", "-cht"])) {
+      return LOCALE_ZH_HANT;
+    }
+    return LOCALE_ZH_HANS;
+  }
+  const lang = startsWith(locale, [LOCALE_EN, LOCALE_FR, LOCALE_ES]);
+  if (lang) {
+    return lang;
+  }
+}
 function getBaseSystemInfo() {
   return wx.getSystemInfoSync();
 }
@@ -769,11 +819,17 @@ function invokePushCallback(args) {
     invokeGetPushCidCallbacks(cid, args.errMsg);
   } else if (args.type === "pushMsg") {
     onPushMessageCallbacks.forEach((callback) => {
-      callback({ type: "receive", data: normalizePushMessage(args.message) });
+      callback({
+        type: "receive",
+        data: normalizePushMessage(args.message)
+      });
     });
   } else if (args.type === "click") {
     onPushMessageCallbacks.forEach((callback) => {
-      callback({ type: "click", data: normalizePushMessage(args.message) });
+      callback({
+        type: "click",
+        data: normalizePushMessage(args.message)
+      });
     });
   }
 }
@@ -784,7 +840,7 @@ function invokeGetPushCidCallbacks(cid2, errMsg) {
   });
   getPushCidCallbacks.length = 0;
 }
-function getPushCid(args) {
+function getPushClientid(args) {
   if (!isPlainObject(args)) {
     args = {};
   }
@@ -795,10 +851,10 @@ function getPushCid(args) {
   getPushCidCallbacks.push((cid2, errMsg) => {
     let res;
     if (cid2) {
-      res = { errMsg: "getPushCid:ok", cid: cid2 };
+      res = { errMsg: "getPushClientid:ok", cid: cid2 };
       hasSuccess && success(res);
     } else {
-      res = { errMsg: "getPushCid:fail" + (errMsg ? " " + errMsg : "") };
+      res = { errMsg: "getPushClientid:fail" + (errMsg ? " " + errMsg : "") };
       hasFail && fail(res);
     }
     hasComplete && complete(res);
@@ -823,7 +879,7 @@ const offPushMessage = (fn) => {
     }
   }
 };
-const SYNC_API_RE = /^\$|getLocale|setLocale|sendNativeEvent|restoreGlobal|requireGlobal|getCurrentSubNVue|getMenuButtonBoundingClientRect|^report|interceptors|Interceptor$|getSubNVueById|requireNativePlugin|upx2px|hideKeyboard|canIUse|^create|Sync$|Manager$|base64ToArrayBuffer|arrayBufferToBase64/;
+const SYNC_API_RE = /^\$|getLocale|setLocale|sendNativeEvent|restoreGlobal|requireGlobal|getCurrentSubNVue|getMenuButtonBoundingClientRect|^report|interceptors|Interceptor$|getSubNVueById|requireNativePlugin|upx2px|hideKeyboard|canIUse|^create|Sync$|Manager$|base64ToArrayBuffer|arrayBufferToBase64|getDeviceInfo|getAppBaseInfo|getWindowInfo/;
 const CONTEXT_API_RE = /^create|Manager$/;
 const CONTEXT_API_RE_EXC = ["createBLEConnection"];
 const ASYNC_API = ["createBLEConnection"];
@@ -952,7 +1008,7 @@ const getLocale = () => {
   if (app && app.$vm) {
     return app.$vm.$locale;
   }
-  return wx.getSystemInfoSync().language || "zh-Hans";
+  return normalizeLocale(wx.getSystemInfoSync().language) || LOCALE_EN;
 };
 const setLocale = (locale) => {
   const app = getApp();
@@ -990,7 +1046,7 @@ const baseApis = {
   getLocale,
   setLocale,
   onLocaleChange,
-  getPushCid,
+  getPushClientid,
   onPushMessage,
   offPushMessage,
   invokePushCallback
@@ -1032,17 +1088,6 @@ function initGetProvider(providers) {
     isFunction(complete) && complete(res);
   };
 }
-function addSafeAreaInsets(fromRes, toRes) {
-  if (fromRes.safeArea) {
-    const safeArea = fromRes.safeArea;
-    toRes.safeAreaInsets = {
-      top: safeArea.top,
-      left: safeArea.left,
-      right: fromRes.windowWidth - safeArea.right,
-      bottom: fromRes.windowHeight - safeArea.bottom
-    };
-  }
-}
 const UUID_KEY = "__DC_STAT_UUID";
 let deviceId;
 function useDeviceId(global2 = wx) {
@@ -1058,10 +1103,113 @@ function useDeviceId(global2 = wx) {
     toRes.deviceId = deviceId;
   };
 }
+function addSafeAreaInsets(fromRes, toRes) {
+  if (fromRes.safeArea) {
+    const safeArea = fromRes.safeArea;
+    toRes.safeAreaInsets = {
+      top: safeArea.top,
+      left: safeArea.left,
+      right: fromRes.windowWidth - safeArea.right,
+      bottom: fromRes.screenHeight - safeArea.bottom
+    };
+  }
+}
+function populateParameters(fromRes, toRes) {
+  const { brand = "", model = "", system = "", language = "", theme, version: version2, platform, fontSizeSetting, SDKVersion, pixelRatio, deviceOrientation } = fromRes;
+  let osName = "";
+  let osVersion = "";
+  {
+    osName = system.split(" ")[0] || "";
+    osVersion = system.split(" ")[1] || "";
+  }
+  let hostVersion = version2;
+  let deviceType = getGetDeviceType(fromRes, model);
+  let deviceBrand = getDeviceBrand(brand);
+  let _hostName = getHostName(fromRes);
+  let _deviceOrientation = deviceOrientation;
+  let _devicePixelRatio = pixelRatio;
+  let _SDKVersion = SDKVersion;
+  const hostLanguage = language.replace(/_/g, "-");
+  const parameters = {
+    appId: "",
+    appName: "",
+    appVersion: "1.0.0",
+    appVersionCode: "100",
+    appLanguage: getAppLanguage(hostLanguage),
+    uniCompileVersion: "3.4.17",
+    uniRuntimeVersion: "3.4.17",
+    uniPlatform: {}.UNI_SUB_PLATFORM || "mp-weixin",
+    deviceBrand,
+    deviceModel: model,
+    deviceType,
+    devicePixelRatio: _devicePixelRatio,
+    deviceOrientation: _deviceOrientation,
+    osName: osName.toLocaleLowerCase(),
+    osVersion,
+    hostTheme: theme,
+    hostVersion,
+    hostLanguage,
+    hostName: _hostName,
+    hostSDKVersion: _SDKVersion,
+    hostFontSizeSetting: fontSizeSetting,
+    windowTop: 0,
+    windowBottom: 0,
+    osLanguage: void 0,
+    osTheme: void 0,
+    ua: void 0,
+    hostPackageName: void 0,
+    browserName: void 0,
+    browserVersion: void 0
+  };
+  extend(toRes, parameters);
+}
+function getGetDeviceType(fromRes, model) {
+  let deviceType = fromRes.deviceType || "phone";
+  {
+    const deviceTypeMaps = {
+      ipad: "pad",
+      windows: "pc",
+      mac: "pc"
+    };
+    const deviceTypeMapsKeys = Object.keys(deviceTypeMaps);
+    const _model = model.toLocaleLowerCase();
+    for (let index2 = 0; index2 < deviceTypeMapsKeys.length; index2++) {
+      const _m = deviceTypeMapsKeys[index2];
+      if (_model.indexOf(_m) !== -1) {
+        deviceType = deviceTypeMaps[_m];
+        break;
+      }
+    }
+  }
+  return deviceType;
+}
+function getDeviceBrand(brand) {
+  let deviceBrand = brand;
+  if (deviceBrand) {
+    deviceBrand = deviceBrand.toLocaleLowerCase();
+  }
+  return deviceBrand;
+}
+function getAppLanguage(defaultLanguage) {
+  return getLocale ? getLocale() : defaultLanguage;
+}
+function getHostName(fromRes) {
+  const _platform = "WeChat";
+  let _hostName = fromRes.hostName || _platform;
+  {
+    if (fromRes.environment) {
+      _hostName = fromRes.environment;
+    } else if (fromRes.host && fromRes.host.env) {
+      _hostName = fromRes.host.env;
+    }
+  }
+  return _hostName;
+}
 const getSystemInfo = {
   returnValue: (fromRes, toRes) => {
     addSafeAreaInsets(fromRes, toRes);
     useDeviceId()(fromRes, toRes);
+    populateParameters(fromRes, toRes);
   }
 };
 const getSystemInfoSync = getSystemInfo;
@@ -1102,6 +1250,47 @@ const showActionSheet = {
     toArgs.alertText = fromArgs.title;
   }
 };
+const getDeviceInfo = {
+  returnValue: (fromRes, toRes) => {
+    const { brand, model } = fromRes;
+    let deviceType = getGetDeviceType(fromRes, model);
+    let deviceBrand = getDeviceBrand(brand);
+    useDeviceId()(fromRes, toRes);
+    toRes = sortObject(extend(toRes, {
+      deviceType,
+      deviceBrand,
+      deviceModel: model
+    }));
+  }
+};
+const getAppBaseInfo = {
+  returnValue: (fromRes, toRes) => {
+    const { version: version2, language, SDKVersion, theme } = fromRes;
+    let _hostName = getHostName(fromRes);
+    let hostLanguage = language.replace(/_/g, "-");
+    toRes = sortObject(extend(toRes, {
+      hostVersion: version2,
+      hostLanguage,
+      hostName: _hostName,
+      hostSDKVersion: SDKVersion,
+      hostTheme: theme,
+      appId: "",
+      appName: "",
+      appVersion: "1.0.0",
+      appVersionCode: "100",
+      appLanguage: getAppLanguage(hostLanguage)
+    }));
+  }
+};
+const getWindowInfo = {
+  returnValue: (fromRes, toRes) => {
+    addSafeAreaInsets(fromRes, toRes);
+    toRes = sortObject(extend(toRes, {
+      windowTop: 0,
+      windowBottom: 0
+    }));
+  }
+};
 const mocks$1 = ["__route__", "__wxExparserNodeId__", "__wxWebviewId__"];
 const getProvider = initGetProvider({
   oauth: ["weixin"],
@@ -1135,7 +1324,10 @@ var protocols = /* @__PURE__ */ Object.freeze({
   previewImage,
   getSystemInfo,
   getSystemInfoSync,
-  showActionSheet
+  showActionSheet,
+  getDeviceInfo,
+  getAppBaseInfo,
+  getWindowInfo
 });
 var index = initUni(shims, protocols);
 function warn(msg, ...args) {
@@ -1412,21 +1604,32 @@ function trigger(target, type, key, newValue, oldValue, oldTarget) {
   }
 }
 function triggerEffects(dep, debuggerEventExtraInfo) {
-  for (const effect of isArray(dep) ? dep : [...dep]) {
-    if (effect !== activeEffect || effect.allowRecurse) {
-      if (effect.onTrigger) {
-        effect.onTrigger(extend({ effect }, debuggerEventExtraInfo));
-      }
-      if (effect.scheduler) {
-        effect.scheduler();
-      } else {
-        effect.run();
-      }
+  const effects = isArray(dep) ? dep : [...dep];
+  for (const effect of effects) {
+    if (effect.computed) {
+      triggerEffect(effect, debuggerEventExtraInfo);
+    }
+  }
+  for (const effect of effects) {
+    if (!effect.computed) {
+      triggerEffect(effect, debuggerEventExtraInfo);
+    }
+  }
+}
+function triggerEffect(effect, debuggerEventExtraInfo) {
+  if (effect !== activeEffect || effect.allowRecurse) {
+    if (effect.onTrigger) {
+      effect.onTrigger(extend({ effect }, debuggerEventExtraInfo));
+    }
+    if (effect.scheduler) {
+      effect.scheduler();
+    } else {
+      effect.run();
     }
   }
 }
 const isNonTrackableKeys = /* @__PURE__ */ makeMap(`__proto__,__v_isRef,__isVue`);
-const builtInSymbols = new Set(/* @__PURE__ */ Object.getOwnPropertyNames(Symbol).map((key) => Symbol[key]).filter(isSymbol));
+const builtInSymbols = new Set(/* @__PURE__ */ Object.getOwnPropertyNames(Symbol).filter((key) => key !== "arguments" && key !== "caller").map((key) => Symbol[key]).filter(isSymbol));
 const get = /* @__PURE__ */ createGetter();
 const shallowGet = /* @__PURE__ */ createGetter(false, true);
 const readonlyGet = /* @__PURE__ */ createGetter(true);
@@ -1484,8 +1687,7 @@ function createGetter(isReadonly2 = false, shallow = false) {
       return res;
     }
     if (isRef(res)) {
-      const shouldUnwrap = !targetIsArray || !isIntegerKey(key);
-      return shouldUnwrap ? res.value : res;
+      return targetIsArray && isIntegerKey(key) ? res : res.value;
     }
     if (isObject(res)) {
       return isReadonly2 ? readonly(res) : reactive(res);
@@ -1578,10 +1780,12 @@ function get$1(target, key, isReadonly2 = false, isShallow2 = false) {
   target = target["__v_raw"];
   const rawTarget = toRaw(target);
   const rawKey = toRaw(key);
-  if (key !== rawKey) {
-    !isReadonly2 && track(rawTarget, "get", key);
+  if (!isReadonly2) {
+    if (key !== rawKey) {
+      track(rawTarget, "get", key);
+    }
+    track(rawTarget, "get", rawKey);
   }
-  !isReadonly2 && track(rawTarget, "get", rawKey);
   const { has: has2 } = getProto(rawTarget);
   const wrap = isShallow2 ? toShallow : isReadonly2 ? toReadonly : toReactive;
   if (has2.call(rawTarget, key)) {
@@ -1596,10 +1800,12 @@ function has$1(key, isReadonly2 = false) {
   const target = this["__v_raw"];
   const rawTarget = toRaw(target);
   const rawKey = toRaw(key);
-  if (key !== rawKey) {
-    !isReadonly2 && track(rawTarget, "has", key);
+  if (!isReadonly2) {
+    if (key !== rawKey) {
+      track(rawTarget, "has", key);
+    }
+    track(rawTarget, "has", rawKey);
   }
-  !isReadonly2 && track(rawTarget, "has", rawKey);
   return key === rawKey ? target.has(key) : target.has(key) || target.has(rawKey);
 }
 function size(target, isReadonly2 = false) {
@@ -2301,6 +2507,7 @@ function flushPreFlushCbs(seen, parentJob = null) {
   }
 }
 function flushPostFlushCbs(seen) {
+  flushPreFlushCbs();
   if (pendingPostFlushCbs.length) {
     const deduped = [...new Set(pendingPostFlushCbs)];
     pendingPostFlushCbs.length = 0;
@@ -2404,7 +2611,8 @@ function emit$1(instance, event, ...rawArgs) {
     const { number, trim } = props[modifiersKey] || EMPTY_OBJ;
     if (trim) {
       args = rawArgs.map((a) => a.trim());
-    } else if (number) {
+    }
+    if (number) {
       args = rawArgs.map(toNumber);
     }
   }
@@ -2552,7 +2760,7 @@ function doWatch(source, cb, { immediate, deep, flush, onTrack, onTrigger } = EM
     deep = true;
   } else if (isArray(source)) {
     isMultiSource = true;
-    forceTrigger = source.some(isReactive);
+    forceTrigger = source.some((s) => isReactive(s) || isShallow(s));
     getter = () => source.map((s) => {
       if (isRef(s)) {
         return s.value;
@@ -2621,13 +2829,7 @@ function doWatch(source, cb, { immediate, deep, flush, onTrack, onTrigger } = EM
   } else if (flush === "post") {
     scheduler = () => queuePostRenderEffect(job, instance && instance.suspense);
   } else {
-    scheduler = () => {
-      if (!instance || instance.isMounted) {
-        queuePreFlushCb(job);
-      } else {
-        job();
-      }
-    };
+    scheduler = () => queuePreFlushCb(job);
   }
   const effect = new ReactiveEffect(getter, scheduler);
   {
@@ -2787,6 +2989,191 @@ const onRenderTracked = createHook$1("rtc");
 function onErrorCaptured(hook, target = currentInstance) {
   injectHook("ec", hook, target);
 }
+function validateDirectiveName(name) {
+  if (isBuiltInDirective(name)) {
+    warn$1("Do not use built-in directive ids as custom directive id: " + name);
+  }
+}
+const getPublicInstance = (i) => {
+  if (!i)
+    return null;
+  if (isStatefulComponent(i))
+    return getExposeProxy(i) || i.proxy;
+  return getPublicInstance(i.parent);
+};
+const publicPropertiesMap = /* @__PURE__ */ extend(/* @__PURE__ */ Object.create(null), {
+  $: (i) => i,
+  $el: (i) => i.__$el || (i.__$el = {}),
+  $data: (i) => i.data,
+  $props: (i) => shallowReadonly(i.props),
+  $attrs: (i) => shallowReadonly(i.attrs),
+  $slots: (i) => shallowReadonly(i.slots),
+  $refs: (i) => shallowReadonly(i.refs),
+  $parent: (i) => getPublicInstance(i.parent),
+  $root: (i) => getPublicInstance(i.root),
+  $emit: (i) => i.emit,
+  $options: (i) => resolveMergedOptions(i),
+  $forceUpdate: (i) => i.f || (i.f = () => queueJob(i.update)),
+  $watch: (i) => instanceWatch.bind(i)
+});
+const isReservedPrefix = (key) => key === "_" || key === "$";
+const PublicInstanceProxyHandlers = {
+  get({ _: instance }, key) {
+    const { ctx, setupState, data, props, accessCache, type, appContext } = instance;
+    if (key === "__isVue") {
+      return true;
+    }
+    if (setupState !== EMPTY_OBJ && setupState.__isScriptSetup && hasOwn(setupState, key)) {
+      return setupState[key];
+    }
+    let normalizedProps;
+    if (key[0] !== "$") {
+      const n = accessCache[key];
+      if (n !== void 0) {
+        switch (n) {
+          case 1:
+            return setupState[key];
+          case 2:
+            return data[key];
+          case 4:
+            return ctx[key];
+          case 3:
+            return props[key];
+        }
+      } else if (setupState !== EMPTY_OBJ && hasOwn(setupState, key)) {
+        accessCache[key] = 1;
+        return setupState[key];
+      } else if (data !== EMPTY_OBJ && hasOwn(data, key)) {
+        accessCache[key] = 2;
+        return data[key];
+      } else if ((normalizedProps = instance.propsOptions[0]) && hasOwn(normalizedProps, key)) {
+        accessCache[key] = 3;
+        return props[key];
+      } else if (ctx !== EMPTY_OBJ && hasOwn(ctx, key)) {
+        accessCache[key] = 4;
+        return ctx[key];
+      } else if (shouldCacheAccess) {
+        accessCache[key] = 0;
+      }
+    }
+    const publicGetter = publicPropertiesMap[key];
+    let cssModule, globalProperties;
+    if (publicGetter) {
+      if (key === "$attrs") {
+        track(instance, "get", key);
+      }
+      return publicGetter(instance);
+    } else if ((cssModule = type.__cssModules) && (cssModule = cssModule[key])) {
+      return cssModule;
+    } else if (ctx !== EMPTY_OBJ && hasOwn(ctx, key)) {
+      accessCache[key] = 4;
+      return ctx[key];
+    } else if (globalProperties = appContext.config.globalProperties, hasOwn(globalProperties, key)) {
+      {
+        return globalProperties[key];
+      }
+    } else if (currentRenderingInstance && (!isString(key) || key.indexOf("__v") !== 0)) {
+      if (data !== EMPTY_OBJ && isReservedPrefix(key[0]) && hasOwn(data, key)) {
+        warn$1(`Property ${JSON.stringify(key)} must be accessed via $data because it starts with a reserved character ("$" or "_") and is not proxied on the render context.`);
+      } else if (instance === currentRenderingInstance) {
+        warn$1(`Property ${JSON.stringify(key)} was accessed during render but is not defined on instance.`);
+      }
+    }
+  },
+  set({ _: instance }, key, value) {
+    const { data, setupState, ctx } = instance;
+    if (setupState !== EMPTY_OBJ && hasOwn(setupState, key)) {
+      setupState[key] = value;
+      return true;
+    } else if (data !== EMPTY_OBJ && hasOwn(data, key)) {
+      data[key] = value;
+      return true;
+    } else if (hasOwn(instance.props, key)) {
+      warn$1(`Attempting to mutate prop "${key}". Props are readonly.`, instance);
+      return false;
+    }
+    if (key[0] === "$" && key.slice(1) in instance) {
+      warn$1(`Attempting to mutate public property "${key}". Properties starting with $ are reserved and readonly.`, instance);
+      return false;
+    } else {
+      if (key in instance.appContext.config.globalProperties) {
+        Object.defineProperty(ctx, key, {
+          enumerable: true,
+          configurable: true,
+          value
+        });
+      } else {
+        ctx[key] = value;
+      }
+    }
+    return true;
+  },
+  has({ _: { data, setupState, accessCache, ctx, appContext, propsOptions } }, key) {
+    let normalizedProps;
+    return !!accessCache[key] || data !== EMPTY_OBJ && hasOwn(data, key) || setupState !== EMPTY_OBJ && hasOwn(setupState, key) || (normalizedProps = propsOptions[0]) && hasOwn(normalizedProps, key) || hasOwn(ctx, key) || hasOwn(publicPropertiesMap, key) || hasOwn(appContext.config.globalProperties, key);
+  },
+  defineProperty(target, key, descriptor) {
+    if (descriptor.get != null) {
+      target._.accessCache[key] = 0;
+    } else if (hasOwn(descriptor, "value")) {
+      this.set(target, key, descriptor.value, null);
+    }
+    return Reflect.defineProperty(target, key, descriptor);
+  }
+};
+{
+  PublicInstanceProxyHandlers.ownKeys = (target) => {
+    warn$1(`Avoid app logic that relies on enumerating keys on a component instance. The keys will be empty in production mode to avoid performance overhead.`);
+    return Reflect.ownKeys(target);
+  };
+}
+function createDevRenderContext(instance) {
+  const target = {};
+  Object.defineProperty(target, `_`, {
+    configurable: true,
+    enumerable: false,
+    get: () => instance
+  });
+  Object.keys(publicPropertiesMap).forEach((key) => {
+    Object.defineProperty(target, key, {
+      configurable: true,
+      enumerable: false,
+      get: () => publicPropertiesMap[key](instance),
+      set: NOOP
+    });
+  });
+  return target;
+}
+function exposePropsOnRenderContext(instance) {
+  const { ctx, propsOptions: [propsOptions] } = instance;
+  if (propsOptions) {
+    Object.keys(propsOptions).forEach((key) => {
+      Object.defineProperty(ctx, key, {
+        enumerable: true,
+        configurable: true,
+        get: () => instance.props[key],
+        set: NOOP
+      });
+    });
+  }
+}
+function exposeSetupStateOnRenderContext(instance) {
+  const { ctx, setupState } = instance;
+  Object.keys(toRaw(setupState)).forEach((key) => {
+    if (!setupState.__isScriptSetup) {
+      if (isReservedPrefix(key[0])) {
+        warn$1(`setup() return property ${JSON.stringify(key)} should not start with "$" or "_" which are reserved prefixes for Vue internals.`);
+        return;
+      }
+      Object.defineProperty(ctx, key, {
+        enumerable: true,
+        configurable: true,
+        get: () => setupState[key],
+        set: NOOP
+      });
+    }
+  });
+}
 function createDuplicateChecker() {
   const cache = /* @__PURE__ */ Object.create(null);
   return (type, key) => {
@@ -2882,7 +3269,7 @@ function applyOptions$1(instance) {
       {
         for (const key in data) {
           checkDuplicateProperties("Data", key);
-          if (key[0] !== "$" && key[0] !== "_") {
+          if (!isReservedPrefix(key[0])) {
             Object.defineProperty(ctx, key, {
               configurable: true,
               enumerable: true,
@@ -3492,11 +3879,6 @@ function isExplicable(type) {
 function isBoolean(...args) {
   return args.some((elem) => elem.toLowerCase() === "boolean");
 }
-function validateDirectiveName(name) {
-  if (isBuiltInDirective(name)) {
-    warn$1("Do not use built-in directive ids as custom directive id: " + name);
-  }
-}
 function createAppContext() {
   return {
     app: null,
@@ -3614,185 +3996,6 @@ function createAppAPI(render, hydrate) {
 const queuePostRenderEffect = queuePostFlushCb;
 function isVNode(value) {
   return value ? value.__v_isVNode === true : false;
-}
-const getPublicInstance = (i) => {
-  if (!i)
-    return null;
-  if (isStatefulComponent(i))
-    return getExposeProxy(i) || i.proxy;
-  return getPublicInstance(i.parent);
-};
-const publicPropertiesMap = /* @__PURE__ */ extend(/* @__PURE__ */ Object.create(null), {
-  $: (i) => i,
-  $el: (i) => i.__$el || (i.__$el = {}),
-  $data: (i) => i.data,
-  $props: (i) => shallowReadonly(i.props),
-  $attrs: (i) => shallowReadonly(i.attrs),
-  $slots: (i) => shallowReadonly(i.slots),
-  $refs: (i) => shallowReadonly(i.refs),
-  $parent: (i) => getPublicInstance(i.parent),
-  $root: (i) => getPublicInstance(i.root),
-  $emit: (i) => i.emit,
-  $options: (i) => resolveMergedOptions(i),
-  $forceUpdate: (i) => () => queueJob(i.update),
-  $watch: (i) => instanceWatch.bind(i)
-});
-const PublicInstanceProxyHandlers = {
-  get({ _: instance }, key) {
-    const { ctx, setupState, data, props, accessCache, type, appContext } = instance;
-    if (key === "__isVue") {
-      return true;
-    }
-    if (setupState !== EMPTY_OBJ && setupState.__isScriptSetup && hasOwn(setupState, key)) {
-      return setupState[key];
-    }
-    let normalizedProps;
-    if (key[0] !== "$") {
-      const n = accessCache[key];
-      if (n !== void 0) {
-        switch (n) {
-          case 1:
-            return setupState[key];
-          case 2:
-            return data[key];
-          case 4:
-            return ctx[key];
-          case 3:
-            return props[key];
-        }
-      } else if (setupState !== EMPTY_OBJ && hasOwn(setupState, key)) {
-        accessCache[key] = 1;
-        return setupState[key];
-      } else if (data !== EMPTY_OBJ && hasOwn(data, key)) {
-        accessCache[key] = 2;
-        return data[key];
-      } else if ((normalizedProps = instance.propsOptions[0]) && hasOwn(normalizedProps, key)) {
-        accessCache[key] = 3;
-        return props[key];
-      } else if (ctx !== EMPTY_OBJ && hasOwn(ctx, key)) {
-        accessCache[key] = 4;
-        return ctx[key];
-      } else if (shouldCacheAccess) {
-        accessCache[key] = 0;
-      }
-    }
-    const publicGetter = publicPropertiesMap[key];
-    let cssModule, globalProperties;
-    if (publicGetter) {
-      if (key === "$attrs") {
-        track(instance, "get", key);
-      }
-      return publicGetter(instance);
-    } else if ((cssModule = type.__cssModules) && (cssModule = cssModule[key])) {
-      return cssModule;
-    } else if (ctx !== EMPTY_OBJ && hasOwn(ctx, key)) {
-      accessCache[key] = 4;
-      return ctx[key];
-    } else if (globalProperties = appContext.config.globalProperties, hasOwn(globalProperties, key)) {
-      {
-        return globalProperties[key];
-      }
-    } else if (currentRenderingInstance && (!isString(key) || key.indexOf("__v") !== 0)) {
-      if (data !== EMPTY_OBJ && (key[0] === "$" || key[0] === "_") && hasOwn(data, key)) {
-        warn$1(`Property ${JSON.stringify(key)} must be accessed via $data because it starts with a reserved character ("$" or "_") and is not proxied on the render context.`);
-      } else if (instance === currentRenderingInstance) {
-        warn$1(`Property ${JSON.stringify(key)} was accessed during render but is not defined on instance.`);
-      }
-    }
-  },
-  set({ _: instance }, key, value) {
-    const { data, setupState, ctx } = instance;
-    if (setupState !== EMPTY_OBJ && hasOwn(setupState, key)) {
-      setupState[key] = value;
-      return true;
-    } else if (data !== EMPTY_OBJ && hasOwn(data, key)) {
-      data[key] = value;
-      return true;
-    } else if (hasOwn(instance.props, key)) {
-      warn$1(`Attempting to mutate prop "${key}". Props are readonly.`, instance);
-      return false;
-    }
-    if (key[0] === "$" && key.slice(1) in instance) {
-      warn$1(`Attempting to mutate public property "${key}". Properties starting with $ are reserved and readonly.`, instance);
-      return false;
-    } else {
-      if (key in instance.appContext.config.globalProperties) {
-        Object.defineProperty(ctx, key, {
-          enumerable: true,
-          configurable: true,
-          value
-        });
-      } else {
-        ctx[key] = value;
-      }
-    }
-    return true;
-  },
-  has({ _: { data, setupState, accessCache, ctx, appContext, propsOptions } }, key) {
-    let normalizedProps;
-    return !!accessCache[key] || data !== EMPTY_OBJ && hasOwn(data, key) || setupState !== EMPTY_OBJ && hasOwn(setupState, key) || (normalizedProps = propsOptions[0]) && hasOwn(normalizedProps, key) || hasOwn(ctx, key) || hasOwn(publicPropertiesMap, key) || hasOwn(appContext.config.globalProperties, key);
-  },
-  defineProperty(target, key, descriptor) {
-    if (descriptor.get != null) {
-      target._.accessCache[key] = 0;
-    } else if (hasOwn(descriptor, "value")) {
-      this.set(target, key, descriptor.value, null);
-    }
-    return Reflect.defineProperty(target, key, descriptor);
-  }
-};
-{
-  PublicInstanceProxyHandlers.ownKeys = (target) => {
-    warn$1(`Avoid app logic that relies on enumerating keys on a component instance. The keys will be empty in production mode to avoid performance overhead.`);
-    return Reflect.ownKeys(target);
-  };
-}
-function createDevRenderContext(instance) {
-  const target = {};
-  Object.defineProperty(target, `_`, {
-    configurable: true,
-    enumerable: false,
-    get: () => instance
-  });
-  Object.keys(publicPropertiesMap).forEach((key) => {
-    Object.defineProperty(target, key, {
-      configurable: true,
-      enumerable: false,
-      get: () => publicPropertiesMap[key](instance),
-      set: NOOP
-    });
-  });
-  return target;
-}
-function exposePropsOnRenderContext(instance) {
-  const { ctx, propsOptions: [propsOptions] } = instance;
-  if (propsOptions) {
-    Object.keys(propsOptions).forEach((key) => {
-      Object.defineProperty(ctx, key, {
-        enumerable: true,
-        configurable: true,
-        get: () => instance.props[key],
-        set: NOOP
-      });
-    });
-  }
-}
-function exposeSetupStateOnRenderContext(instance) {
-  const { ctx, setupState } = instance;
-  Object.keys(toRaw(setupState)).forEach((key) => {
-    if (!setupState.__isScriptSetup) {
-      if (key[0] === "$" || key[0] === "_") {
-        warn$1(`setup() return property ${JSON.stringify(key)} should not start with "$" or "_" which are reserved prefixes for Vue internals.`);
-        return;
-      }
-      Object.defineProperty(ctx, key, {
-        enumerable: true,
-        configurable: true,
-        get: () => setupState[key],
-        set: NOOP
-      });
-    }
-  });
 }
 const emptyAppContext = createAppContext();
 let uid$1 = 0;
@@ -4040,8 +4243,8 @@ function getExposeProxy(instance) {
 }
 const classifyRE = /(?:^|[-_])(\w)/g;
 const classify = (str) => str.replace(classifyRE, (c) => c.toUpperCase()).replace(/[-_]/g, "");
-function getComponentName(Component2) {
-  return isFunction(Component2) ? Component2.displayName || Component2.name : Component2.name;
+function getComponentName(Component2, includeInferred = true) {
+  return isFunction(Component2) ? Component2.displayName || Component2.name : Component2.name || includeInferred && Component2.__name;
 }
 function formatComponentName(instance, Component2, isRoot = false) {
   let name = getComponentName(Component2);
@@ -4066,7 +4269,7 @@ function formatComponentName(instance, Component2, isRoot = false) {
 const computed$1 = (getterOrOptions, debugOptions) => {
   return computed(getterOrOptions, debugOptions, isInSSRComponentSetup);
 };
-const version = "3.2.33";
+const version = "3.2.37";
 function unwrapper(target) {
   return unref(target);
 }
@@ -4462,7 +4665,7 @@ function componentUpdateScopedSlotsFn() {
   const diffData = /* @__PURE__ */ Object.create(null);
   scopedSlotsData.forEach(({ path, index: index2, data }) => {
     const oldScopedSlotData = getValueByDataPath(oldData, path);
-    const diffPath = `${path}[${index2}]`;
+    const diffPath = isString(index2) ? `${path}.${index2}` : `${path}[${index2}]`;
     if (typeof oldScopedSlotData === "undefined" || typeof oldScopedSlotData[index2] === "undefined") {
       diffData[diffPath] = data;
     } else {
@@ -4555,6 +4758,7 @@ function createVueApp(rootComponent, rootProps = null) {
       slots: [],
       props: null
     });
+    app._instance = instance.$;
     instance.$app = app;
     instance.$createComponent = createComponent2;
     instance.$destroyComponent = destroyComponent;
@@ -4593,17 +4797,19 @@ function applyOptions$2(options, instance, publicThis) {
 function set(target, key, val) {
   return target[key] = val;
 }
-function errorHandler(err, instance, info) {
-  if (!instance) {
-    throw err;
-  }
-  const app = getApp();
-  if (!app || !app.$vm) {
-    throw err;
-  }
-  {
-    app.$vm.$callHook(ON_ERROR, err, info);
-  }
+function createErrorHandler(app) {
+  return function errorHandler(err, instance, _info) {
+    if (!instance) {
+      throw err;
+    }
+    const appInstance = app._instance;
+    if (!appInstance || !appInstance.proxy) {
+      throw err;
+    }
+    {
+      appInstance.proxy.$callHook(ON_ERROR, err);
+    }
+  };
 }
 function mergeAsArray(to, from) {
   return to ? [...new Set([].concat(to, from))] : from;
@@ -4681,7 +4887,7 @@ function uniIdMixin(globalProperties) {
 function initApp(app) {
   const appConfig = app._context.config;
   if (isFunction(app._component.onError)) {
-    appConfig.errorHandler = errorHandler;
+    appConfig.errorHandler = createErrorHandler(app);
   }
   initOptionMergeStrategies(appConfig.optionMergeStrategies);
   const globalProperties = appConfig.globalProperties;
@@ -5005,7 +5211,7 @@ function initAppLifecycle(appOptions, vm) {
   }
 }
 function initLocale(appVm) {
-  const locale = ref(wx.getSystemInfoSync().language || "zh-Hans");
+  const locale = ref(normalizeLocale(wx.getSystemInfoSync().language) || LOCALE_EN);
   Object.defineProperty(appVm, "$locale", {
     get() {
       return locale.value;
@@ -5507,7 +5713,5 @@ exports.defineComponent = defineComponent;
 exports.onHide = onHide;
 exports.onLaunch = onLaunch;
 exports.onShow = onShow;
-exports.reactive = reactive;
 exports.ref = ref;
 exports.t = t;
-exports.unref = unref;

@@ -1,15 +1,12 @@
 "use strict";
 var common_vendor = require("../../common/vendor.js");
 const _sfc_main = /* @__PURE__ */ common_vendor.defineComponent({
+  __name: "index",
   setup(__props) {
     const title = common_vendor.ref("Hello");
-    const form = common_vendor.reactive({
-      name: "World"
-    });
     return (_ctx, _cache) => {
       return {
-        a: common_vendor.t(title.value),
-        b: common_vendor.t(common_vendor.unref(form).name)
+        a: common_vendor.t(title.value)
       };
     };
   }

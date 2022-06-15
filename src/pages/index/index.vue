@@ -1,9 +1,6 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { ref } from 'vue'
 const title = ref('Hello')
-const form = reactive({
-  name: 'World',
-})
 const handle = () => {
   //
 }
@@ -11,13 +8,15 @@ const handle = () => {
 
 <template>
   <view class="content">
-    <image class="logo" src="/static/logo.png" />
+    <!-- #ifdef MP-WEIXIN -->
+    <image class="logo" src="/static/wx.png" />
+    <!-- #endif -->
+    <!-- #ifdef H5 -->
+    <image src="/static/h5.png" mode="widthFix" />
+    <!-- #endif -->
     <view class="text-area">
       <text class="title">
         {{ title }}
-      </text>
-      <text class="title">
-        {{ form.name }}
       </text>
     </view>
   </view>

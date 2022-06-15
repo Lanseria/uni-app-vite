@@ -1,0 +1,7 @@
+{
+  "create-uniapp-view.template": "vue3",
+  "files.associations": {
+    "pages.json": "jsonc",
+    "manifest.json": "jsonc"
+  }
+}
