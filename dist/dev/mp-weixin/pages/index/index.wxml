@@ -1,1 +1,1 @@
-<view class="content"><image class="logo" src="/static/wx.png"/><view class="text-area"><text class="title">{{a}}</text></view></view>
+<view class="content"><image class="logo" src="/static/wx.png"/><view class="text-area"><text class="title">{{a}}</text><uni-badge wx:if="{{b}}" u-s="{{['d']}}" u-i="a42fc59a-0" bind:__l="__l" u-p="{{b}}"><button> 右下 </button></uni-badge></view></view>

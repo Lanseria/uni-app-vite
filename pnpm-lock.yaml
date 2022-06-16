@@ -17,6 +17,7 @@ specifiers:
   '@dcloudio/uni-mp-toutiao': 3.0.0-alpha-3041720220614001
   '@dcloudio/uni-mp-weixin': 3.0.0-alpha-3041720220614001
   '@dcloudio/uni-quickapp-webview': 3.0.0-alpha-3041720220614001
+  '@dcloudio/uni-ui': ^1.4.16
   '@dcloudio/vite-plugin-uni': 3.0.0-alpha-3041720220614001
   eslint: ^8.17.0
   pinia: ^2.0.14
@@ -39,6 +40,7 @@ dependencies:
   '@dcloudio/uni-mp-toutiao': 3.0.0-alpha-3041720220614001_postcss@8.4.14+vue@3.2.37
   '@dcloudio/uni-mp-weixin': 3.0.0-alpha-3041720220614001_postcss@8.4.14+vue@3.2.37
   '@dcloudio/uni-quickapp-webview': 3.0.0-alpha-3041720220614001_postcss@8.4.14+vue@3.2.37
+  '@dcloudio/uni-ui': 1.4.16
   pinia: 2.0.14_vcmyupim4cga7k7f5hngmth5py
   vue: 3.2.37
   vue-i18n: 9.1.10_vue@3.2.37
@@ -849,6 +851,10 @@ packages:
       - supports-color
       - ts-node
       - vue
+    dev: false
+
+  /@dcloudio/uni-ui/1.4.16:
+    resolution: {integrity: sha512-HChJ7vXupOGy1d0GY4k9x4Q7ng+zW3EpliJI7sbW66JOTxf7kZnZNxjg+Gs2yBkE+Wm+iAymZbQEGNSsctoGGQ==}
     dev: false
 
   /@dcloudio/uts-darwin-arm64/3.0.0-alpha-3041720220614001:

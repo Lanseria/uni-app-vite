@@ -8,12 +8,7 @@ const handle = () => {
 
 <template>
   <view class="content">
-    <!-- #ifdef MP-WEIXIN -->
     <image class="logo" src="/static/wx.png" />
-    <!-- #endif -->
-    <!-- #ifdef H5 -->
-    <image src="/static/h5.png" mode="widthFix" />
-    <!-- #endif -->
     <view class="text-area">
       <text class="title">
         {{ title }}
